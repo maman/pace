@@ -17,12 +17,25 @@ This project merges logic from [InstantSpaceSwitcher](https://github.com/jurplel
 
 ## Build
 
+Pace uses [Tuist](https://tuist.io) to generate the Xcode project from `Project.swift`. Tuist is pinned via `mise.toml`.
+
 ```bash
-xcodebuild -project Pace.xcodeproj -scheme Pace -configuration Debug -derivedDataPath build
+# Generate the Xcode project (no Xcode window)
+tuist generate --no-open
+
+# Build
+tuist xcodebuild build -scheme Pace -configuration Debug -derivedDataPath build -destination 'platform=macOS'
+
+# Run locally (generate + build + launch)
+./run-menubar.sh
 ```
 
 ## Test
 
 ```bash
-xcodebuild test -project Pace.xcodeproj -scheme Pace -derivedDataPath build
+tuist xcodebuild test -scheme Pace -configuration Debug -derivedDataPath build -destination 'platform=macOS'
 ```
+
+## License
+
+MIT. See [LICENSE](LICENSE) for details and upstream attributions.

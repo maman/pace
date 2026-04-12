@@ -3,6 +3,14 @@ build/
 *.xcodeproj/xcuserdata/
 *.xcodeproj/project.xcworkspace/xcuserdata/
 
+# Tuist-generated artifacts (Project.swift is the source of truth)
+Pace.xcodeproj/
+Pace.xcworkspace/
+Derived/
+.tuist-bin/
+.tuist-version
+graph.png
+
 # Reference projects
 ref/
 

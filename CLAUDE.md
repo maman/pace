@@ -6,21 +6,42 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Pace is a macOS menu-bar app (SwiftUI, macOS 15+) that provides instant desktop space switching — no animation delay. It works via two mechanisms: global hotkeys (Carbon Event API) and trackpad gesture interception (CGEvent tap). It is a Swift rewrite inspired by [InstantSpaceSwitcher](https://github.com/jurplel/InstantSpaceSwitcher), whose C-based touchpad logic lives in `ref/` as a reference implementation.
 
+## Project generation (Tuist)
+
+`Project.swift` at the repo root is the source of truth. The `Pace.xcodeproj` / `Pace.xcworkspace` are generated and git-ignored — never hand-edit them.
+
+```bash
+# Regenerate the Xcode project without opening it
+TUIST_SKIP_UPDATE_CHECK=1 tuist generate --no-open
+
+# Run/restart the app locally (handles generate + build + launch)
+./run-menubar.sh
+
+# Stop a running instance
+./stop-menubar.sh
+```
+
+Tuist is pinned via `mise.toml`.
+
 ## Build & Test Commands
 
 ```bash
 # Build
-xcodebuild -project Pace.xcodeproj -scheme Pace -configuration Debug -derivedDataPath build
+TUIST_SKIP_UPDATE_CHECK=1 tuist xcodebuild build \
+  -scheme Pace -configuration Debug -derivedDataPath build -destination 'platform=macOS'
 
 # Run all tests
-xcodebuild test -project Pace.xcodeproj -scheme Pace -derivedDataPath build
+TUIST_SKIP_UPDATE_CHECK=1 tuist xcodebuild test \
+  -scheme Pace -configuration Debug -derivedDataPath build -destination 'platform=macOS'
 
 # Run a single test class
-xcodebuild test -project Pace.xcodeproj -scheme Pace -derivedDataPath build \
+TUIST_SKIP_UPDATE_CHECK=1 tuist xcodebuild test \
+  -scheme Pace -configuration Debug -derivedDataPath build -destination 'platform=macOS' \
   -only-testing:PaceTests/GestureEngineTests
 
 # Run a single test method
-xcodebuild test -project Pace.xcodeproj -scheme Pace -derivedDataPath build \
+TUIST_SKIP_UPDATE_CHECK=1 tuist xcodebuild test \
+  -scheme Pace -configuration Debug -derivedDataPath build -destination 'platform=macOS' \
   -only-testing:PaceTests/GestureEngineTests/testBeganSetsTracking
 ```
 
@@ -28,7 +49,7 @@ Build output goes to `build/` (project-local derived data).
 
 ## Build Phase: Debug Accessibility Reset
 
-A shell script build phase runs `tccutil reset Accessibility ${PRODUCT_BUNDLE_IDENTIFIER}` on Debug builds. This revokes the app's Accessibility permission each build so you can test the permission prompt flow from scratch.
+A pre-build script phase (declared in `Project.swift`) runs `tccutil reset Accessibility ${PRODUCT_BUNDLE_IDENTIFIER}` on Debug builds. This revokes the app's Accessibility permission each build so you can test the permission prompt flow from scratch.
 
 ## Architecture
 

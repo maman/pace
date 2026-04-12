@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "macos-menubar-tuist-app": {
+      "source": "dimillian/skills",
+      "sourceType": "github",
+      "computedHash": "8724ada68cf08a1a965321a688969825bf33be8d344ba2ce67207c6ce604e76a"
+    }
+  }
+}
