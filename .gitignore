@@ -1,0 +1,13 @@
+# Xcode
+build/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+
+# Reference projects
+ref/
+
+# macOS
+.DS_Store
+
+# SwiftPM (if used in future)
+.build/
