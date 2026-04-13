@@ -37,6 +37,8 @@ let project = Project(
             deploymentTargets: deploymentTarget,
             infoPlist: .extendingDefault(with: [
                 "CFBundleDisplayName": "Pace",
+                "CFBundleIconName": "AppIcon",
+                "CFBundleIconFile": "AppIcon",
                 "CFBundleShortVersionString": "$(MARKETING_VERSION)",
                 "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
                 "LSUIElement": true,
@@ -49,10 +51,7 @@ let project = Project(
                 "SUScheduledCheckInterval": 86400,
             ]),
             sources: ["Pace/**/*.swift"],
-            resources: [
-                "Pace/Assets.xcassets",
-                "icons/AppIcon.icon",
-            ],
+            resources: ["Pace/Assets.xcassets"],
             entitlements: .file(path: "Pace/Pace.entitlements"),
             scripts: [
                 .pre(
