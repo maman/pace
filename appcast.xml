@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='utf-8'?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+  <channel>
+    <title>Pace</title>
+    <link>https://maman.github.io/pace/appcast.xml</link>
+    <description>Pace release feed</description>
+    <language>en</language>
+    <item>
+      <title>Version 0.1.0</title>
+      <pubDate>Mon, 13 Apr 2026 10:53:59 +0000</pubDate>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <sparkle:releaseNotesLink>https://github.com/maman/pace/releases/tag/v0.1.0</sparkle:releaseNotesLink>
+      <enclosure url="https://github.com/maman/pace/releases/download/v0.1.0/Pace-0.1.0.zip" length="17284610" type="application/octet-stream" sparkle:version="5" sparkle:shortVersionString="0.1.0" sparkle:edSignature="jf0izrKck9k2eLPdulTAS1ocrNr5O/L6YGXnaMOiGrXB39S206KJi2rLreQK+Xxd307AWFHHwzcumuj0WP+7DQ==" />
+    </item>
+  </channel>
+</rss>
