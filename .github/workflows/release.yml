@@ -49,10 +49,13 @@ jobs:
     needs: gate
     timeout-minutes: 30
 
-    env:
-      KEYCHAIN_PATH: ${{ runner.temp }}/build.keychain
-
     steps:
+      - name: Resolve temporary keychain path
+        # `runner.temp` is not available at job-level env:, only in step contexts.
+        # Export $RUNNER_TEMP/build.keychain to $GITHUB_ENV so subsequent steps
+        # can reference $KEYCHAIN_PATH.
+        run: echo "KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain" >> "$GITHUB_ENV"
+
       - name: Checkout (full history for git-derived versioning)
         uses: actions/checkout@v4
         with:
