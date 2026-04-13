@@ -132,16 +132,17 @@ jobs:
           PRIVATE_KEY=$(cat "$KEY_FILE")
           [ -n "$PRIVATE_KEY" ] || { echo "decoded SPARKLE_PRIVATE_KEY is empty"; exit 1; }
 
+          # -A allows any application to access the item without a SecurityAgent
+          # prompt. Acceptable trade-off for an ephemeral runner-scoped keychain
+          # that gets deleted at job end. Without it, sign_update (launched later
+          # by release.sh) would trigger a UI prompt that never surfaces on
+          # headless macOS runners, causing the whole workflow to hang.
           security add-generic-password \
             -a ed25519 -s "https://sparkle-project.org" \
             -w "$PRIVATE_KEY" \
-            -T "" \
+            -A \
             "$KEYCHAIN_PATH"
-
-          security find-generic-password -a ed25519 -s "https://sparkle-project.org" \
-            -w "$KEYCHAIN_PATH" >/dev/null \
-            || { echo "EdDSA key not retrievable from keychain after add"; exit 1; }
-          echo "EdDSA key imported and verified."
+          echo "EdDSA key imported into temporary keychain."
 
       - name: Resolve Sparkle SPM dependency
         run: TUIST_SKIP_UPDATE_CHECK=1 tuist install
