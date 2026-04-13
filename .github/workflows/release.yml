@@ -1,0 +1,219 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  gate:
+    name: Gate (re-run tests on tagged SHA)
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      # Hard-fail (not skip) on non-tag refs so workflow_dispatch from a branch
+      # surfaces as a red ❌, not a silent "no run".
+      - name: Reject non-tag refs
+        run: |
+          if [ "${{ github.ref_type }}" != "tag" ] || [[ ! "${{ github.ref_name }}" =~ ^v ]]; then
+            echo "::error::release.yml must be invoked from a v* tag (got ref_type=${{ github.ref_type }} ref_name=${{ github.ref_name }}). Refusing to publish a release; release.sh's git-describe fallback would produce marketing version 0.0.0."
+            exit 1
+          fi
+          echo "Ref guard passed: tag ${{ github.ref_name }}"
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: jdx/mise-action@v2
+
+      - name: Swift unit tests (tagged SHA)
+        run: |
+          TUIST_SKIP_UPDATE_CHECK=1 tuist install
+          TUIST_SKIP_UPDATE_CHECK=1 tuist generate --no-open
+          TUIST_SKIP_UPDATE_CHECK=1 tuist xcodebuild test \
+            -scheme Pace -configuration Debug \
+            -derivedDataPath build \
+            -clonedSourcePackagesDirPath build/SourcePackages \
+            -destination 'platform=macOS' | xcbeautify
+
+      - name: Appcast upsert script tests (tagged SHA)
+        run: bash scripts/test-appcast-upsert.sh
+
+  release:
+    name: Build, sign, notarize, publish
+    runs-on: macos-15
+    needs: gate
+    timeout-minutes: 30
+
+    env:
+      KEYCHAIN_PATH: ${{ runner.temp }}/build.keychain
+
+    steps:
+      - name: Checkout (full history for git-derived versioning)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Tuist + xcbeautify (from mise.toml)
+        uses: jdx/mise-action@v2
+
+      - name: Guard against unset SUPublicEDKey
+        run: |
+          set -euo pipefail
+          PUBKEY=$(grep -E '"SUPublicEDKey"[[:space:]]*:' Project.swift | \
+                   sed -E 's/.*"SUPublicEDKey"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/')
+          [ -n "$PUBKEY" ] || { echo "::error::SUPublicEDKey not found in Project.swift"; exit 1; }
+          case "$PUBKEY" in
+            *PLACEHOLDER*|"")
+              echo "::error::SUPublicEDKey is still the placeholder. Run generate_keys locally, paste the base64 public key into Project.swift, commit, and re-tag."
+              exit 1 ;;
+          esac
+          [ "${#PUBKEY}" -ge 40 ] || { echo "::error::SUPublicEDKey suspiciously short (${#PUBKEY} chars)"; exit 1; }
+          echo "SUPublicEDKey guard passed (${#PUBKEY} chars)"
+
+      - name: Import Developer ID certificate into temporary keychain
+        env:
+          CERT_BASE64: ${{ secrets.DEVELOPER_ID_CERT_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+          CERT_PATH="$RUNNER_TEMP/cert.p12"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          security list-keychains -d user -s "$KEYCHAIN_PATH" \
+            $(security list-keychains -d user | tr -d '"')
+
+          echo -n "$CERT_BASE64" | base64 --decode > "$CERT_PATH"
+          security import "$CERT_PATH" \
+            -P "$CERT_PASSWORD" \
+            -A -t cert -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+          rm "$CERT_PATH"
+
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -s -k "$KEYCHAIN_PASSWORD" \
+            "$KEYCHAIN_PATH"
+
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+
+      - name: Configure notarytool credentials
+        env:
+          NOTARY_APPLE_ID: ${{ secrets.NOTARY_APPLE_ID }}
+          NOTARY_PASSWORD: ${{ secrets.NOTARY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          xcrun notarytool store-credentials AC_NOTARY \
+            --apple-id "$NOTARY_APPLE_ID" \
+            --team-id "DKL5CLP48A" \
+            --password "$NOTARY_PASSWORD"
+
+      - name: Import Sparkle EdDSA private key
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          KEY_FILE=$(mktemp)
+          chmod 600 "$KEY_FILE"
+          trap 'shred -u "$KEY_FILE" 2>/dev/null || rm -f "$KEY_FILE"' EXIT
+
+          echo -n "$SPARKLE_PRIVATE_KEY" | base64 --decode > "$KEY_FILE"
+          PRIVATE_KEY=$(cat "$KEY_FILE")
+          [ -n "$PRIVATE_KEY" ] || { echo "decoded SPARKLE_PRIVATE_KEY is empty"; exit 1; }
+
+          security add-generic-password \
+            -a ed25519 -s "https://sparkle-project.org" \
+            -w "$PRIVATE_KEY" \
+            -T "" \
+            "$KEYCHAIN_PATH"
+
+          security find-generic-password -a ed25519 -s "https://sparkle-project.org" \
+            -w "$KEYCHAIN_PATH" >/dev/null \
+            || { echo "EdDSA key not retrievable from keychain after add"; exit 1; }
+          echo "EdDSA key imported and verified."
+
+      - name: Resolve Sparkle SPM dependency
+        run: TUIST_SKIP_UPDATE_CHECK=1 tuist install
+
+      - name: Build, sign, notarize, staple
+        run: ./release.sh
+
+      - name: Publish GitHub Release (idempotent on rerun)
+        id: publish_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+          ZIP_NAME="Pace-${VERSION}.zip"
+          ZIP_PATH="dist/${ZIP_NAME}"
+          [ -f "${ZIP_PATH}" ] || { echo "missing ${ZIP_PATH}"; exit 1; }
+
+          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            echo "Release ${TAG} already exists — uploading asset with --clobber"
+            gh release upload "$TAG" "${ZIP_PATH}" --clobber --repo "$REPO"
+          else
+            echo "Creating release ${TAG}"
+            gh release create "$TAG" --repo "$REPO" \
+              --title "Pace $VERSION" --generate-notes "${ZIP_PATH}"
+          fi
+
+          ASSET_URL="https://github.com/${REPO}/releases/download/${TAG}/${ZIP_NAME}"
+          HTML_URL="https://github.com/${REPO}/releases/tag/${TAG}"
+
+          {
+            echo "asset_url=${ASSET_URL}"
+            echo "html_url=${HTML_URL}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upsert and publish appcast to gh-pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+          ASSET_URL: ${{ steps.publish_release.outputs.asset_url }}
+          HTML_URL: ${{ steps.publish_release.outputs.html_url }}
+        run: |
+          set -euo pipefail
+          WORK=$(mktemp -d)
+          REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+
+          if git ls-remote --exit-code --heads "${REMOTE}" gh-pages >/dev/null 2>&1; then
+            git clone --depth=1 --branch gh-pages "${REMOTE}" "${WORK}"
+          else
+            (cd "${WORK}" && git init -b gh-pages && git remote add origin "${REMOTE}")
+          fi
+
+          python3 scripts/appcast-upsert.py \
+            "${WORK}/appcast.xml" \
+            dist/appcast-meta.json \
+            "${HTML_URL}" \
+            "${ASSET_URL}"
+
+          xmllint --noout "${WORK}/appcast.xml"
+
+          cd "${WORK}"
+          git add appcast.xml
+          if git diff --cached --quiet; then
+            echo "appcast.xml unchanged — skipping commit (idempotent rerun)"
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" \
+              -c user.email="github-actions[bot]@users.noreply.github.com" \
+              commit -m "Release ${TAG}"
+          git push origin gh-pages
+
+      - name: Cleanup keychain
+        if: always()
+        run: |
+          security delete-keychain "$KEYCHAIN_PATH" 2>/dev/null || true

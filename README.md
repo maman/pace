@@ -6,7 +6,7 @@ Pace sits in your menu bar and lets you switch spaces instantly via **global hot
 
 ## Requirements
 
-- macOS 15+
+- macOS 14+
 - Accessibility permission (for trackpad gesture interception and shortcut recording)
 
 ## How it works
@@ -17,23 +17,32 @@ This project merges logic from [InstantSpaceSwitcher](https://github.com/jurplel
 
 ## Build
 
-Pace uses [Tuist](https://tuist.io) to generate the Xcode project from `Project.swift`. Tuist is pinned via `mise.toml`.
+Pace uses [Tuist](https://tuist.io) to generate the Xcode project from `Project.swift` and `Tuist/Package.swift`. Tuist is pinned via `mise.toml`.
 
 ```bash
+# Resolve SPM dependencies (required once per checkout / after pulling changes
+# to Tuist/Package.swift or Tuist/Package.resolved)
+tuist install
+
 # Generate the Xcode project (no Xcode window)
 tuist generate --no-open
 
 # Build
-tuist xcodebuild build -scheme Pace -configuration Debug -derivedDataPath build -destination 'platform=macOS'
+tuist xcodebuild build -scheme Pace -configuration Debug \
+  -derivedDataPath build -clonedSourcePackagesDirPath build/SourcePackages \
+  -destination 'platform=macOS'
 
-# Run locally (generate + build + launch)
+# Run locally (handles tuist install + generate + build + launch internally)
 ./run-menubar.sh
 ```
 
 ## Test
 
 ```bash
-tuist xcodebuild test -scheme Pace -configuration Debug -derivedDataPath build -destination 'platform=macOS'
+tuist install
+tuist xcodebuild test -scheme Pace -configuration Debug \
+  -derivedDataPath build -clonedSourcePackagesDirPath build/SourcePackages \
+  -destination 'platform=macOS'
 ```
 
 ## License

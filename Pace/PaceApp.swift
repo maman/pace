@@ -1,3 +1,4 @@
+import Sparkle
 import SwiftUI
 
 @main
@@ -6,7 +7,11 @@ struct PaceApp: App {
 
     var body: some Scene {
         MenuBarExtra("Pace", systemImage: "hare") {
-            PaceMenu(appState: delegate.appState, coordinator: delegate.coordinator)
+            PaceMenu(
+                appState: delegate.appState,
+                coordinator: delegate.coordinator,
+                updaterController: delegate.updaterController
+            )
         }
         Settings {
             ShortcutSettingsView(appState: delegate.appState, coordinator: delegate.coordinator)
@@ -20,6 +25,11 @@ struct PaceApp: App {
 final class PaceAppDelegate: NSObject, NSApplicationDelegate {
     let appState = AppState()
     let coordinator = PaceCoordinator()
+    let updaterController = SPUStandardUpdaterController(
+        startingUpdater: true,
+        updaterDelegate: nil,
+        userDriverDelegate: nil
+    )
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupMainMenu()
@@ -45,6 +55,14 @@ final class PaceAppDelegate: NSObject, NSApplicationDelegate {
         settingsItem.target = self
         appMenu.addItem(settingsItem)
 
+        let updatesItem = NSMenuItem(
+            title: "Check for Updates\u{2026}",
+            action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)),
+            keyEquivalent: ""
+        )
+        updatesItem.target = updaterController
+        appMenu.addItem(updatesItem)
+
         appMenu.addItem(.separator())
 
         let quitItem = NSMenuItem(
@@ -68,6 +86,7 @@ final class PaceAppDelegate: NSObject, NSApplicationDelegate {
 struct PaceMenu: View {
     @Bindable var appState: AppState
     @Bindable var coordinator: PaceCoordinator
+    let updaterController: SPUStandardUpdaterController
     @Environment(\.openSettings) private var openSettings
 
     var body: some View {
@@ -104,6 +123,10 @@ struct PaceMenu: View {
                 }
             }
         ))
+
+        Divider()
+
+        CheckForUpdatesView(updaterController: updaterController)
 
         Divider()
 

@@ -1,0 +1,48 @@
+{
+  "fill" : "automatic",
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "glass" : false,
+          "image-name" : "2 – Layer.png",
+          "name" : "2 – Layer",
+          "position" : {
+            "scale" : 0.5,
+            "translation-in-points" : [
+              6.538507476338054,
+              -78.98676325887914
+            ]
+          }
+        },
+        {
+          "glass" : false,
+          "hidden" : false,
+          "image-name" : "1 – Layer.svg",
+          "name" : "1 – Layer",
+          "position" : {
+            "scale" : 3,
+            "translation-in-points" : [
+              17.3667028976879,
+              364.7159443811147
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}

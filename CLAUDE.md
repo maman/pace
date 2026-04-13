@@ -4,17 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What is Pace
 
-Pace is a macOS menu-bar app (SwiftUI, macOS 15+) that provides instant desktop space switching — no animation delay. It works via two mechanisms: global hotkeys (Carbon Event API) and trackpad gesture interception (CGEvent tap). It is a Swift rewrite inspired by [InstantSpaceSwitcher](https://github.com/jurplel/InstantSpaceSwitcher), whose C-based touchpad logic lives in `ref/` as a reference implementation.
+Pace is a macOS menu-bar app (SwiftUI, macOS 14+) that provides instant desktop space switching — no animation delay. It works via two mechanisms: global hotkeys (Carbon Event API) and trackpad gesture interception (CGEvent tap). It is a Swift rewrite inspired by [InstantSpaceSwitcher](https://github.com/jurplel/InstantSpaceSwitcher), whose C-based touchpad logic lives in `ref/` as a reference implementation.
 
 ## Project generation (Tuist)
 
-`Project.swift` at the repo root is the source of truth. The `Pace.xcodeproj` / `Pace.xcworkspace` are generated and git-ignored — never hand-edit them.
+`Project.swift` and `Tuist/Package.swift` are the source of truth. `Tuist/Package.resolved` pins SPM dependency patch versions and is committed. The `Pace.xcodeproj` / `Pace.xcworkspace` are generated and git-ignored — never hand-edit them. Run `tuist install` after pulling any change to `Tuist/Package.swift` or `Tuist/Package.resolved`.
 
 ```bash
+# Resolve SPM dependencies (Sparkle, etc.)
+TUIST_SKIP_UPDATE_CHECK=1 tuist install
+
 # Regenerate the Xcode project without opening it
 TUIST_SKIP_UPDATE_CHECK=1 tuist generate --no-open
 
-# Run/restart the app locally (handles generate + build + launch)
+# Run/restart the app locally (handles tuist install + generate + build + launch)
 ./run-menubar.sh
 
 # Stop a running instance
@@ -26,26 +29,37 @@ Tuist is pinned via `mise.toml`.
 ## Build & Test Commands
 
 ```bash
+# Resolve packages first (once per checkout)
+TUIST_SKIP_UPDATE_CHECK=1 tuist install
+
 # Build
 TUIST_SKIP_UPDATE_CHECK=1 tuist xcodebuild build \
-  -scheme Pace -configuration Debug -derivedDataPath build -destination 'platform=macOS'
+  -scheme Pace -configuration Debug \
+  -derivedDataPath build -clonedSourcePackagesDirPath build/SourcePackages \
+  -destination 'platform=macOS'
 
 # Run all tests
 TUIST_SKIP_UPDATE_CHECK=1 tuist xcodebuild test \
-  -scheme Pace -configuration Debug -derivedDataPath build -destination 'platform=macOS'
+  -scheme Pace -configuration Debug \
+  -derivedDataPath build -clonedSourcePackagesDirPath build/SourcePackages \
+  -destination 'platform=macOS'
 
 # Run a single test class
 TUIST_SKIP_UPDATE_CHECK=1 tuist xcodebuild test \
-  -scheme Pace -configuration Debug -derivedDataPath build -destination 'platform=macOS' \
+  -scheme Pace -configuration Debug \
+  -derivedDataPath build -clonedSourcePackagesDirPath build/SourcePackages \
+  -destination 'platform=macOS' \
   -only-testing:PaceTests/GestureEngineTests
 
 # Run a single test method
 TUIST_SKIP_UPDATE_CHECK=1 tuist xcodebuild test \
-  -scheme Pace -configuration Debug -derivedDataPath build -destination 'platform=macOS' \
+  -scheme Pace -configuration Debug \
+  -derivedDataPath build -clonedSourcePackagesDirPath build/SourcePackages \
+  -destination 'platform=macOS' \
   -only-testing:PaceTests/GestureEngineTests/testBeganSetsTracking
 ```
 
-Build output goes to `build/` (project-local derived data).
+Build output goes to `build/` (project-local derived data). SPM artifacts (including Sparkle's `sign_update` / `generate_keys` binaries) land at `build/SourcePackages/artifacts/...` thanks to `-clonedSourcePackagesDirPath`. `release.sh` discovers them from that path.
 
 ## Build Phase: Debug Accessibility Reset
 

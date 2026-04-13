@@ -12,6 +12,9 @@ DERIVED_DATA="build"
 
 export TUIST_SKIP_UPDATE_CHECK=1
 
+echo "==> Resolving packages"
+tuist install
+
 echo "==> Generating Tuist project"
 tuist generate --no-open
 
@@ -20,6 +23,7 @@ tuist xcodebuild build \
     -scheme "${SCHEME}" \
     -configuration "${CONFIG}" \
     -derivedDataPath "${DERIVED_DATA}" \
+    -clonedSourcePackagesDirPath "${DERIVED_DATA}/SourcePackages" \
     -destination 'platform=macOS' \
     | tail -n 40
 

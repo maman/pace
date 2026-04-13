@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+    tags-ignore: ['**']
+  pull_request:
+
+jobs:
+  test:
+    name: Tests
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: jdx/mise-action@v2
+
+      - name: Swift unit tests
+        run: |
+          TUIST_SKIP_UPDATE_CHECK=1 tuist install
+          TUIST_SKIP_UPDATE_CHECK=1 tuist generate --no-open
+          TUIST_SKIP_UPDATE_CHECK=1 tuist xcodebuild test \
+            -scheme Pace -configuration Debug \
+            -derivedDataPath build \
+            -clonedSourcePackagesDirPath build/SourcePackages \
+            -destination 'platform=macOS' | xcbeautify
+
+      - name: Appcast upsert script tests
+        run: bash scripts/test-appcast-upsert.sh
+
+      - name: Script + manifest syntax checks
+        run: |
+          bash -n run-menubar.sh
+          bash -n stop-menubar.sh
+          bash -n release.sh
+          bash -n scripts/test-appcast-upsert.sh
+          python3 -m py_compile scripts/appcast-upsert.py

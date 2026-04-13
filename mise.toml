@@ -1,2 +1,3 @@
 [tools]
 tuist = "4"
+xcbeautify = "latest"

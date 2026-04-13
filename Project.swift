@@ -37,12 +37,23 @@ let project = Project(
             deploymentTargets: deploymentTarget,
             infoPlist: .extendingDefault(with: [
                 "CFBundleDisplayName": "Pace",
+                "CFBundleShortVersionString": "$(MARKETING_VERSION)",
+                "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
                 "LSUIElement": true,
+                "LSApplicationCategoryType": "public.app-category.utilities",
                 "NSAccessibilityUsageDescription": "Pace needs Accessibility to intercept trackpad gestures and record keyboard shortcuts.",
                 "NSHumanReadableCopyright": "",
+                "SUFeedURL": "https://maman.github.io/pace/appcast.xml",
+                "SUPublicEDKey": "e3ermNLuMTNUMMKzq5kHMwaIhufi3sIBSGUBwqyAgW8=",
+                "SUEnableAutomaticChecks": true,
+                "SUScheduledCheckInterval": 86400,
             ]),
             sources: ["Pace/**/*.swift"],
-            resources: ["Pace/Assets.xcassets"],
+            resources: [
+                "Pace/Assets.xcassets",
+                "icons/AppIcon.icon",
+            ],
+            entitlements: .file(path: "Pace/Pace.entitlements"),
             scripts: [
                 .pre(
                     script: """
@@ -54,6 +65,9 @@ let project = Project(
                     basedOnDependencyAnalysis: false
                 )
             ],
+            dependencies: [
+                .external(name: "Sparkle"),
+            ],
             settings: .settings(
                 base: sharedSwiftSettings.merging([
                     "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
@@ -61,7 +75,6 @@ let project = Project(
                     "ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS": "YES",
                     "COMBINE_HIDPI_IMAGES": "YES",
                     "ENABLE_APP_SANDBOX": "NO",
-                    "ENABLE_HARDENED_RUNTIME": "YES",
                     "ENABLE_PREVIEWS": "YES",
                     "ENABLE_USER_SCRIPT_SANDBOXING": "NO",
                     "ENABLE_USER_SELECTED_FILES": "readonly",
@@ -79,9 +92,13 @@ let project = Project(
                 configurations: [
                     .debug(name: "Debug", settings: [
                         "CODE_SIGN_IDENTITY": "-",
+                        "CODE_SIGN_STYLE": "Automatic",
                     ]),
                     .release(name: "Release", settings: [
-                        "CODE_SIGN_IDENTITY[sdk=macosx*]": "3rd Party Mac Developer Application",
+                        "CODE_SIGN_IDENTITY[sdk=macosx*]": "Developer ID Application",
+                        "CODE_SIGN_STYLE": "Manual",
+                        "ENABLE_HARDENED_RUNTIME": "YES",
+                        "OTHER_CODE_SIGN_FLAGS": "--timestamp --options=runtime",
                         "VALIDATE_PRODUCT": "YES",
                     ]),
                 ]
