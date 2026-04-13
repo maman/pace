@@ -51,7 +51,10 @@ let project = Project(
                 "SUScheduledCheckInterval": 86400,
             ]),
             sources: ["Pace/**/*.swift"],
-            resources: ["Pace/Assets.xcassets"],
+            resources: [
+                "Pace/Assets.xcassets",
+                "Pace/Resources/AppIcon.icns",
+            ],
             entitlements: .file(path: "Pace/Pace.entitlements"),
             scripts: [
                 .pre(
