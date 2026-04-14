@@ -24,11 +24,11 @@ jobs:
           fi
           echo "Ref guard passed: tag ${{ github.ref_name }}"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@v4
 
       - name: Swift unit tests (tagged SHA)
         run: |
@@ -57,12 +57,12 @@ jobs:
         run: echo "KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain" >> "$GITHUB_ENV"
 
       - name: Checkout (full history for git-derived versioning)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Install Tuist + xcbeautify (from mise.toml)
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@v4
 
       - name: Guard against unset SUPublicEDKey
         run: |
