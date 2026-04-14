@@ -24,7 +24,6 @@ final class AppState {
         self.loginService = loginService
 
         isEnabled = defaults.object(forKey: "pace.enabled") as? Bool ?? true
-        trackpadSwipeEnabled = defaults.object(forKey: "pace.trackpadSwipe") as? Bool ?? true
 
         let loadedLeft = Self.loadHotkey(defaults, "pace.hotkey.left")
         let loadedRight = Self.loadHotkey(defaults, "pace.hotkey.right")
@@ -49,10 +48,6 @@ final class AppState {
 
     var isEnabled: Bool {
         didSet { defaults.set(isEnabled, forKey: "pace.enabled") }
-    }
-
-    var trackpadSwipeEnabled: Bool {
-        didSet { defaults.set(trackpadSwipeEnabled, forKey: "pace.trackpadSwipe") }
     }
 
     private(set) var leftHotkey: HotkeyCombination {

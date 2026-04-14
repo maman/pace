@@ -18,10 +18,9 @@ final class PaceCoordinatorTests: XCTestCase {
         super.tearDown()
     }
 
-    private func makeState(isEnabled: Bool = true, trackpad: Bool = true) -> AppState {
+    private func makeState(isEnabled: Bool = true) -> AppState {
         let state = AppState(defaults: defaults, loginService: MockLoginService())
         state.isEnabled = isEnabled
-        state.trackpadSwipeEnabled = trackpad
         return state
     }
 
@@ -66,16 +65,6 @@ final class PaceCoordinatorTests: XCTestCase {
         XCTAssertEqual(engine.startCount, 0) // No AX
         XCTAssertEqual(hk.registrations.count, 2) // Hotkeys still work
         XCTAssertGreaterThan(perm.promptCount, 0)
-    }
-
-    func testTrackpadOffAtLaunch() {
-        let (coord, engine, hk, perm, _, _) = makeCoordinator(granted: true)
-        let state = makeState(trackpad: false)
-        coord.start(appState: state)
-
-        XCTAssertEqual(engine.startCount, 0) // No engine when trackpad off
-        XCTAssertEqual(hk.registrations.count, 2) // Hotkeys registered
-        XCTAssertEqual(perm.promptCount, 0) // No AX prompt
     }
 
     // MARK: - Observation
@@ -135,6 +124,42 @@ final class PaceCoordinatorTests: XCTestCase {
 
         XCTAssertTrue(coord.accessibilityGranted)
         XCTAssertEqual(engine.startCount, 1)
+    }
+
+    func testEngineTearDownRefreshesAX() async {
+        let (coord, engine, _, perm, _, _) = makeCoordinator(granted: true)
+        let state = makeState()
+        coord.start(appState: state)
+        XCTAssertTrue(coord.accessibilityGranted)
+        XCTAssertEqual(engine.startCount, 1)
+
+        // Simulate AX revoke underneath the running engine
+        perm.granted = false
+        engine.onInvoluntaryTearDown?()
+        await Task.yield()
+
+        XCTAssertFalse(coord.accessibilityGranted)
+        XCTAssertGreaterThan(engine.stopCount, 0)
+    }
+
+    func testRecorderTearDownRefreshesAXWhileDisabled() async {
+        let (coord, engine, _, perm, recorder, _) = makeCoordinator(granted: true)
+        let state = makeState(isEnabled: false)
+        coord.start(appState: state)
+        XCTAssertTrue(coord.accessibilityGranted)
+        XCTAssertEqual(engine.startCount, 0)
+
+        XCTAssertTrue(coord.beginRecording(for: .left))
+        XCTAssertEqual(coord.recordingDirection, .left)
+
+        // Simulate AX revoke mid-recording
+        perm.granted = false
+        recorder.simulateInvoluntaryTearDown()
+        await Task.yield()
+
+        XCTAssertFalse(coord.accessibilityGranted)
+        XCTAssertNil(coord.recordingDirection)
+        XCTAssertFalse(recorder.isRecording)
     }
 
     // MARK: - Recording
@@ -230,6 +255,66 @@ final class PaceCoordinatorTests: XCTestCase {
         perm.granted = true
         actObs.simulateActivation()
         XCTAssertTrue(coord.accessibilityGranted)
+    }
+
+    // MARK: - Watchdog Health Check
+
+    func testHealthCheckDetectsPermissionLoss() {
+        let (coord, engine, _, perm, _, _) = makeCoordinator(granted: true)
+        let state = makeState()
+        coord.start(appState: state)
+        XCTAssertTrue(coord.accessibilityGranted)
+        XCTAssertEqual(engine.startCount, 1)
+        let priorStops = engine.stopCount
+
+        // Simulate the user revoking AX in System Settings
+        perm.granted = false
+        coord.performHealthCheck()
+
+        XCTAssertFalse(coord.accessibilityGranted)
+        XCTAssertEqual(engine.stopCount, priorStops + 1)
+    }
+
+    func testHealthCheckCancelsRecordingOnPermissionLoss() {
+        let (coord, _, _, perm, recorder, _) = makeCoordinator(granted: true)
+        let state = makeState(isEnabled: false)
+        coord.start(appState: state)
+        XCTAssertTrue(coord.beginRecording(for: .right))
+        XCTAssertTrue(recorder.isRecording)
+
+        perm.granted = false
+        coord.performHealthCheck()
+
+        XCTAssertFalse(coord.accessibilityGranted)
+        XCTAssertFalse(recorder.isRecording)
+        XCTAssertNil(coord.recordingDirection)
+    }
+
+    func testHealthCheckRestartsEngineWhenPermissionReturns() {
+        let (coord, engine, _, perm, _, _) = makeCoordinator(granted: false)
+        let state = makeState()
+        coord.start(appState: state)
+        XCTAssertEqual(engine.startCount, 0)
+
+        perm.granted = true
+        coord.performHealthCheck()
+
+        XCTAssertTrue(coord.accessibilityGranted)
+        XCTAssertEqual(engine.startCount, 1)
+    }
+
+    func testHealthCheckNoOpWhenStopped() {
+        let (coord, engine, _, perm, _, _) = makeCoordinator(granted: true)
+        let state = makeState()
+        coord.start(appState: state)
+        coord.stop()
+        let priorStops = engine.stopCount
+
+        perm.granted = false
+        coord.performHealthCheck()
+
+        // Stopped coordinator should not react further
+        XCTAssertEqual(engine.stopCount, priorStops)
     }
 
     func testAppDeactivationCancelsRecording() {

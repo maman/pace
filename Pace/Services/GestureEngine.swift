@@ -6,6 +6,7 @@ import CoreGraphics
 @MainActor
 protocol GestureEngineProtocol: AnyObject {
     var isRunning: Bool { get }
+    var onInvoluntaryTearDown: (() -> Void)? { get set }
     func start()
     func stop()
     nonisolated func switchSpace(direction: SpaceDirection)
@@ -96,7 +97,11 @@ func processGestureEvent(
 // MARK: - Tap Recovery Helper
 
 func shouldReEnableTap(type: CGEventType) -> Bool {
-    type == .tapDisabledByTimeout || type == .tapDisabledByUserInput
+    type == .tapDisabledByTimeout
+}
+
+func shouldTearDownTap(type: CGEventType) -> Bool {
+    type == .tapDisabledByUserInput
 }
 
 // MARK: - CGEvent Field Constants (iss.c:44-53)
@@ -121,6 +126,7 @@ final class GestureEngine: GestureEngineProtocol {
     nonisolated(unsafe) var tap: CFMachPort?
     nonisolated(unsafe) var runLoopSource: CFRunLoopSource?
     nonisolated(unsafe) var canSwitchFn: (SpaceDirection) -> SwitchCheck = { canSwitch(direction: $0) }
+    nonisolated(unsafe) var onInvoluntaryTearDown: (() -> Void)?
 
     var isRunning: Bool { tap != nil }
 
@@ -153,6 +159,19 @@ final class GestureEngine: GestureEngineProtocol {
         }
         CFMachPortInvalidate(t)
         tap = nil
+        state.reset()
+    }
+
+    nonisolated func tearDownFromCallback() {
+        if let t = tap {
+            CGEvent.tapEnable(tap: t, enable: false)
+            if let src = runLoopSource {
+                CFRunLoopRemoveSource(CFRunLoopGetMain(), src, .commonModes)
+                runLoopSource = nil
+            }
+            CFMachPortInvalidate(t)
+            tap = nil
+        }
         state.reset()
     }
 
@@ -218,6 +237,11 @@ private func gestureEventCallback(
             CGEvent.tapEnable(tap: tap, enable: true)
         }
         return Unmanaged.passUnretained(event)
+    }
+    if shouldTearDownTap(type: type) {
+        engine.tearDownFromCallback()
+        engine.onInvoluntaryTearDown?()
+        return nil
     }
 
     let eventType = Int(event.getIntegerValueField(kCGSEventTypeField))

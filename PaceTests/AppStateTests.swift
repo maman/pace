@@ -22,7 +22,6 @@ final class AppStateTests: XCTestCase {
     func testFreshDefaults() {
         let state = AppState(defaults: defaults, loginService: mockLogin)
         XCTAssertTrue(state.isEnabled)
-        XCTAssertTrue(state.trackpadSwipeEnabled)
         XCTAssertEqual(state.leftHotkey, .defaultLeft)
         XCTAssertEqual(state.rightHotkey, .defaultRight)
     }

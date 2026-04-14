@@ -5,6 +5,7 @@ final class MockEngine: GestureEngineProtocol {
     var isRunning = false
     var startCount = 0
     var stopCount = 0
+    var onInvoluntaryTearDown: (() -> Void)?
 
     func start() { startCount += 1; isRunning = true }
     func stop() { stopCount += 1; isRunning = false }
@@ -43,15 +44,18 @@ final class MockRecorder: EventRecorderProtocol {
     var isRecording = false
     var capturedOnKeyPress: ((NSEvent) -> Void)?
     var capturedOnMouseClick: (() -> Void)?
+    var capturedOnInvoluntaryTearDown: (() -> Void)?
 
     func startRecording(
         onKeyPress: @escaping (NSEvent) -> Void,
-        onMouseClick: @escaping () -> Void
+        onMouseClick: @escaping () -> Void,
+        onInvoluntaryTearDown: @escaping () -> Void
     ) -> Bool {
         guard shouldSucceed else { return false }
         isRecording = true
         capturedOnKeyPress = onKeyPress
         capturedOnMouseClick = onMouseClick
+        capturedOnInvoluntaryTearDown = onInvoluntaryTearDown
         return true
     }
 
@@ -59,10 +63,12 @@ final class MockRecorder: EventRecorderProtocol {
         isRecording = false
         capturedOnKeyPress = nil
         capturedOnMouseClick = nil
+        capturedOnInvoluntaryTearDown = nil
     }
 
     func simulateKeyPress(_ event: NSEvent) { capturedOnKeyPress?(event) }
     func simulateMouseClick() { capturedOnMouseClick?() }
+    func simulateInvoluntaryTearDown() { capturedOnInvoluntaryTearDown?() }
 }
 
 final class MockLoginService: LoginServiceProtocol {

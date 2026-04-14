@@ -16,11 +16,16 @@ final class PaceCoordinator {
 
     private(set) var recordingDirection: SpaceDirection?
     private(set) var accessibilityGranted = false
+    private var watchdogTimer: Timer?
+
+    #if DEBUG
+    private var debugSimulateAXLoss = false
+    #endif
+
+    static let watchdogInterval: TimeInterval = 1.0
 
     var needsAccessibilityWarning: Bool {
-        (appState?.isEnabled ?? false) &&
-        (appState?.trackpadSwipeEnabled ?? false) &&
-        !accessibilityGranted
+        (appState?.isEnabled ?? false) && !accessibilityGranted
     }
 
     init(
@@ -38,7 +43,7 @@ final class PaceCoordinator {
     }
 
     private var needsEngine: Bool {
-        (appState?.isEnabled ?? false) && (appState?.trackpadSwipeEnabled ?? false)
+        appState?.isEnabled ?? false
     }
 
     // MARK: - Lifecycle
@@ -48,6 +53,12 @@ final class PaceCoordinator {
         isStarted = true
         previousNeedsEngine = needsEngine
         refreshAccessibility()
+        engine.onInvoluntaryTearDown = { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self, self.isStarted else { return }
+                self.handleEngineTearDown()
+            }
+        }
         if needsEngine {
             permissionChecker.promptAccessibility()
             refreshAccessibility()
@@ -66,22 +77,71 @@ final class PaceCoordinator {
                 }
             }
         )
+        startWatchdog()
     }
 
     func stop() {
         isStarted = false
         appState = nil
+        stopWatchdog()
         recorder.stopRecording()
         recordingDirection = nil
         engine.stop()
+        engine.onInvoluntaryTearDown = nil
         hotkeyManager.unregisterAll()
         activationObserver.removeObservers(activationTokens)
         activationTokens = []
     }
 
+    // MARK: - Watchdog
+
+    private func startWatchdog() {
+        stopWatchdog()
+        watchdogTimer = Timer.scheduledTimer(
+            withTimeInterval: Self.watchdogInterval,
+            repeats: true
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.performHealthCheck() }
+        }
+    }
+
+    private func stopWatchdog() {
+        watchdogTimer?.invalidate()
+        watchdogTimer = nil
+    }
+
+    func performHealthCheck() {
+        guard isStarted else { return }
+        let wasGranted = accessibilityGranted
+        refreshAccessibility()
+        if wasGranted && !accessibilityGranted {
+            handlePermissionLost()
+        } else if !wasGranted && accessibilityGranted {
+            syncEngine()
+        }
+    }
+
+    private func handlePermissionLost() {
+        if recordingDirection != nil { cancelRecording() }
+        syncEngine()
+    }
+
+    #if DEBUG
+    func simulateAccessibilityLoss(_ on: Bool) {
+        debugSimulateAXLoss = on
+        performHealthCheck()
+    }
+    #endif
+
     // MARK: - State Observation
 
     private func refreshAccessibility() {
+        #if DEBUG
+        if debugSimulateAXLoss {
+            accessibilityGranted = false
+            return
+        }
+        #endif
         accessibilityGranted = permissionChecker.isAccessibilityGranted()
     }
 
@@ -89,7 +149,6 @@ final class PaceCoordinator {
         guard isStarted, let appState else { return }
         withObservationTracking {
             _ = appState.isEnabled
-            _ = appState.trackpadSwipeEnabled
             _ = appState.leftHotkey
             _ = appState.rightHotkey
         } onChange: { [weak self] in
@@ -126,7 +185,7 @@ final class PaceCoordinator {
 
     private func syncEngine() {
         guard let appState else { return }
-        if appState.isEnabled && appState.trackpadSwipeEnabled && accessibilityGranted {
+        if appState.isEnabled && accessibilityGranted {
             engine.start()
         } else {
             engine.stop()
@@ -144,6 +203,17 @@ final class PaceCoordinator {
         syncEngine()
     }
 
+    private func handleEngineTearDown() {
+        refreshAccessibility()
+        syncHotkeys()
+        syncEngine()
+    }
+
+    private func handleRecorderTearDown() {
+        refreshAccessibility()
+        cancelRecording()
+    }
+
     // MARK: - Recording
 
     func beginRecording(for direction: SpaceDirection) -> Bool {
@@ -156,7 +226,12 @@ final class PaceCoordinator {
 
         let started = recorder.startRecording(
             onKeyPress: { [weak self] event in self?.handleRecordedKeyPress(event) },
-            onMouseClick: { [weak self] in self?.cancelRecording() }
+            onMouseClick: { [weak self] in self?.cancelRecording() },
+            onInvoluntaryTearDown: { [weak self] in
+                Task { @MainActor [weak self] in
+                    self?.handleRecorderTearDown()
+                }
+            }
         )
         guard started else { return false }
 

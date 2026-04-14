@@ -7,15 +7,18 @@ struct PaceApp: App {
 
     var body: some Scene {
         MenuBarExtra("Pace", systemImage: "hare") {
-            PaceMenu(
+            PaceMenu(appState: delegate.appState)
+        }
+        Window("Pace", id: "pace-settings") {
+            SettingsView(
                 appState: delegate.appState,
                 coordinator: delegate.coordinator,
                 updaterController: delegate.updaterController
             )
         }
-        Settings {
-            ShortcutSettingsView(appState: delegate.appState, coordinator: delegate.coordinator)
-        }
+        .windowStyle(.hiddenTitleBar)
+        .windowResizability(.contentSize)
+        .defaultSize(width: 460, height: 340)
     }
 }
 
@@ -77,7 +80,9 @@ final class PaceAppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func showSettings() {
         NSApp.activate(ignoringOtherApps: true)
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        if let w = NSApp.windows.first(where: { $0.identifier?.rawValue == "pace-settings" }) {
+            w.makeKeyAndOrderFront(nil)
+        }
     }
 }
 
@@ -85,53 +90,15 @@ final class PaceAppDelegate: NSObject, NSApplicationDelegate {
 
 struct PaceMenu: View {
     @Bindable var appState: AppState
-    @Bindable var coordinator: PaceCoordinator
-    let updaterController: SPUStandardUpdaterController
-    @Environment(\.openSettings) private var openSettings
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        Toggle("Enabled", isOn: $appState.isEnabled)
-        Toggle("Trackpad Swipe", isOn: $appState.trackpadSwipeEnabled)
-
-        Divider()
-
-        if coordinator.needsAccessibilityWarning {
-            Button("Accessibility Required\u{2026}") {
-                coordinator.openAccessibilitySettings()
-            }
-            Button("Check Again") {
-                coordinator.retryAccessibility()
-            }
-        }
-
-        Text("Switch Left: \(appState.leftHotkey.displayString)")
-        Text("Switch Right: \(appState.rightHotkey.displayString)")
-        Button("Change Shortcuts\u{2026}") {
+        Toggle("Enable", isOn: $appState.isEnabled)
+        Button("Settings\u{2026}") {
             NSApp.activate(ignoringOtherApps: true)
-            openSettings()
+            openWindow(id: "pace-settings")
         }
-
         Divider()
-
-        Toggle("Launch at Login", isOn: Binding(
-            get: { appState.launchAtLoginMirror },
-            set: { newValue in
-                do {
-                    try appState.setLaunchAtLogin(newValue)
-                } catch {
-                    NSSound.beep()
-                }
-            }
-        ))
-
-        Divider()
-
-        CheckForUpdatesView(updaterController: updaterController)
-
-        Divider()
-
-        Button("Quit Pace") {
-            NSApp.terminate(nil)
-        }
+        Button("Quit") { NSApp.terminate(nil) }
     }
 }

@@ -124,11 +124,23 @@ final class GestureEngineTests: XCTestCase {
         XCTAssertTrue(shouldReEnableTap(type: .tapDisabledByTimeout))
     }
 
-    func testShouldReEnableOnUserInput() {
-        XCTAssertTrue(shouldReEnableTap(type: .tapDisabledByUserInput))
+    func testShouldNotReEnableOnUserInput() {
+        XCTAssertFalse(shouldReEnableTap(type: .tapDisabledByUserInput))
     }
 
     func testShouldNotReEnableOnKeyDown() {
         XCTAssertFalse(shouldReEnableTap(type: .keyDown))
+    }
+
+    func testShouldTearDownOnUserInput() {
+        XCTAssertTrue(shouldTearDownTap(type: .tapDisabledByUserInput))
+    }
+
+    func testShouldNotTearDownOnTimeout() {
+        XCTAssertFalse(shouldTearDownTap(type: .tapDisabledByTimeout))
+    }
+
+    func testShouldNotTearDownOnKeyDown() {
+        XCTAssertFalse(shouldTearDownTap(type: .keyDown))
     }
 }

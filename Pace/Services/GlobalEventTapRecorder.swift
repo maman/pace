@@ -3,7 +3,11 @@ import CoreGraphics
 
 @MainActor
 protocol EventRecorderProtocol: AnyObject {
-    func startRecording(onKeyPress: @escaping (NSEvent) -> Void, onMouseClick: @escaping () -> Void) -> Bool
+    func startRecording(
+        onKeyPress: @escaping (NSEvent) -> Void,
+        onMouseClick: @escaping () -> Void,
+        onInvoluntaryTearDown: @escaping () -> Void
+    ) -> Bool
     func stopRecording()
 }
 
@@ -14,17 +18,20 @@ final class GlobalEventTapRecorder: EventRecorderProtocol {
     nonisolated(unsafe) var runLoopSource: CFRunLoopSource?
     nonisolated(unsafe) var onKeyPress: ((NSEvent) -> Void)?
     nonisolated(unsafe) var onMouseClick: (() -> Void)?
+    nonisolated(unsafe) var onInvoluntaryTearDown: (() -> Void)?
 
     private init() {}
 
     func startRecording(
         onKeyPress: @escaping (NSEvent) -> Void,
-        onMouseClick: @escaping () -> Void
+        onMouseClick: @escaping () -> Void,
+        onInvoluntaryTearDown: @escaping () -> Void
     ) -> Bool {
         stopRecording()
 
         self.onKeyPress = onKeyPress
         self.onMouseClick = onMouseClick
+        self.onInvoluntaryTearDown = onInvoluntaryTearDown
 
         let eventMask: CGEventMask =
             (1 << CGEventType.keyDown.rawValue) |
@@ -42,6 +49,7 @@ final class GlobalEventTapRecorder: EventRecorderProtocol {
         ) else {
             self.onKeyPress = nil
             self.onMouseClick = nil
+            self.onInvoluntaryTearDown = nil
             return false
         }
 
@@ -64,6 +72,19 @@ final class GlobalEventTapRecorder: EventRecorderProtocol {
         }
         onKeyPress = nil
         onMouseClick = nil
+        onInvoluntaryTearDown = nil
+    }
+
+    nonisolated func tearDownFromCallback() {
+        if let tap = eventTap {
+            CGEvent.tapEnable(tap: tap, enable: false)
+            if let source = runLoopSource {
+                CFRunLoopRemoveSource(CFRunLoopGetCurrent(), source, .commonModes)
+                self.runLoopSource = nil
+            }
+            CFMachPortInvalidate(tap)
+            self.eventTap = nil
+        }
     }
 }
 
@@ -79,11 +100,17 @@ private func recorderCallback(
     let recorder = Unmanaged<GlobalEventTapRecorder>.fromOpaque(userInfo).takeUnretainedValue()
 
     // Tap recovery
-    if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+    if shouldReEnableTap(type: type) {
         if let tap = recorder.eventTap {
             CGEvent.tapEnable(tap: tap, enable: true)
         }
         return Unmanaged.passUnretained(event)
+    }
+    if shouldTearDownTap(type: type) {
+        let handler = recorder.onInvoluntaryTearDown
+        recorder.tearDownFromCallback()
+        handler?()
+        return nil
     }
 
     // Mouse click → cancel recording
