@@ -6,6 +6,13 @@
     <description>Pace release feed</description>
     <language>en</language>
     <item>
+      <title>Version 0.2.0</title>
+      <pubDate>Tue, 14 Apr 2026 15:14:45 +0000</pubDate>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <sparkle:releaseNotesLink>https://github.com/maman/pace/releases/tag/v0.2.0</sparkle:releaseNotesLink>
+      <enclosure url="https://github.com/maman/pace/releases/download/v0.2.0/Pace-0.2.0.zip" length="1401333" type="application/octet-stream" sparkle:version="8" sparkle:shortVersionString="0.2.0" sparkle:edSignature="76PbrBg0EO7q6J00LVbsEN7YC0aBEEBG0PUSxlwoXawgrLvDQiEyMSwTp9tFgIqZZUWSwuMC96mHez5E5uwpBQ==" />
+    </item>
+    <item>
       <title>Version 0.1.2</title>
       <pubDate>Mon, 13 Apr 2026 13:09:41 +0000</pubDate>
       <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
